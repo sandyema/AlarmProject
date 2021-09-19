@@ -13,11 +13,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
+import java.math.RoundingMode;
+import java.text.DecimalFormat;
 
-import java.io.BufferedReader;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.*;
 import java.util.*;
 import javax.mail.*;
@@ -31,6 +30,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 @Controller
 @RequestMapping("/StockAlarms")
@@ -45,11 +46,13 @@ public class User_Controller {
     @Autowired
     private AlarmUser_Repository alarmUser_repository;
 
-   // @Scheduled(fixedRate = 50000)
-    public void scheduleFixedRateTask() {
+    private static DecimalFormat df2 = new DecimalFormat("#.##");
+
+    @Scheduled(fixedRate = 50000)
+    public void scheduleFixedTask(){
 
         String alarmName,destinationEmail="";
-
+        Double price=0.0;
         for (UserAlarm userAlarm : alarmUser_repository.findAll())
         {
             for (Alarm_User user : user_repository.findAll()) {
@@ -57,16 +60,17 @@ public class User_Controller {
                     if (userAlarm.getId_alarm().equals(alarm.getId()) && userAlarm.getId_user().equals(user.getId()) && alarm.getActive().equals(1)) {
                         try {
                             alarmName=alarm.getAlarm_name();
-                            Double price=getPriceStock(alarmName);
+                            price=getPriceStock(alarmName);
 
-                            if((alarm.getOver_price().equals(1) && price.equals(alarm.getInitial_price()*(1+alarm.getWanted_percent()/100))) || (alarm.getLess_price().equals(1) && price.equals(alarm.getInitial_price()*(1-alarm.getWanted_percent()/100))))
+                            if((alarm.getOver_price().equals(1) && df2.format(price).equals(df2.format(alarm.getInitial_price()*(1+alarm.getWanted_percent()/100)))) || (alarm.getLess_price().equals(1) && df2.format(price).equals(df2.format(alarm.getInitial_price()*(1-alarm.getWanted_percent()/100)))))
 
                             {
-                                destinationEmail=user.getEmail();
+                                 destinationEmail=user.getEmail();
 
+                                sendMail(destinationEmail,alarmName,price);
                             }
 
-                        } catch (IOException e) {
+                        } catch (Exception e) {
                             e.printStackTrace();
                         }
                     }
@@ -74,57 +78,8 @@ public class User_Controller {
             }
         }
 
-
-
-        // email ID of  Sender.
-        String sender = "sandyema43@gmail.com";
-
-        // using host as localhost
-        String host = "192.168.100.26";
-
-        // Getting system properties
-        Properties properties = System.getProperties();
-
-
-        properties.put("mail.smtp.auth", "false");
-        properties.put("mail.smtp.starttls.enable", "true");
-        properties.put("mail.smtp.host", "smtp.gmail.com");
-        properties.put("mail.smtp.port", "465");
-
-        // Create session object passing properties and authenticator instance
-        Session session = Session.getInstance(properties, new javax.mail.Authenticator() {
-            protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication("", "");
-            }
-        });
-
-        try
-        {
-            // MimeMessage object.
-            MimeMessage message = new MimeMessage(session);
-
-            // Set From Field: adding senders email to from field.
-            message.setFrom(new InternetAddress(sender));
-
-            // Set To Field: adding recipient's email to from field.
-            message.addRecipient(Message.RecipientType.TO, new InternetAddress(destinationEmail));
-
-            // Set Subject: subject of the email
-            message.setSubject("Alarm Stock");
-
-            // set body of the email.
-            message.setText("You alarm get your wanted price");
-
-            // Send email.
-            Transport.send(message);
-            System.out.println("Mail successfully sent");
-        }
-        catch (MessagingException mex)
-        {
-            mex.printStackTrace();
-        }
-
     }
+
 
     @RequestMapping(value = "/login", method = RequestMethod.POST)
     public @ResponseBody
@@ -264,14 +219,16 @@ public class User_Controller {
                                 alarm.setCurrent_price(price);
                                 alarmsList.add(alarm);
 
-                                if(alarm.getOver_price().equals(1) && alarm.getCurrent_price().equals(alarm.getInitial_price()*(1+alarm.getWanted_percent()/100)))
+
+                                if(alarm.getOver_price().equals(1) && df2.format(alarm.getCurrent_price()).equals(df2.format(alarm.getInitial_price()*(1+alarm.getWanted_percent()/100))))
 
                                 {
                                     alarm.setActive(0);
                                     }
 
-                                if(alarm.getLess_price().equals(1) && alarm.getCurrent_price().equals(alarm.getInitial_price()*(1-alarm.getWanted_percent()/100)))
+                                if(alarm.getLess_price().equals(1) && df2.format(alarm.getCurrent_price()).equals(df2.format(alarm.getInitial_price()*(1-alarm.getWanted_percent()/100))))
                                 {
+
                                     alarm.setActive(0);
                                     }
 
@@ -410,4 +367,56 @@ public class User_Controller {
 
         return new JSONObject(response);
     }
+
+    public static void sendMail(String recepient,String stockName,Double price) throws Exception {
+        System.out.println("Preparing to send email");
+        Properties properties = new Properties();
+
+        //Enable authentication
+        properties.put("mail.smtp.auth", "true");
+        //Set TLS encryption enabled
+        properties.put("mail.smtp.starttls.enable", "true");
+        //Set SMTP host
+        properties.put("mail.smtp.host", "smtp.gmail.com");
+        //Set smtp port
+        properties.put("mail.smtp.port", "587");
+        properties.put("mail.smtp.ssl.trust", "smtp.gmail.com");
+
+        //Your gmail address
+        String myAccountEmail = "sandyema43@gmail.com";
+        //Your gmail password
+        String password = "********";
+
+        //Create a session with account credentials
+        Session session = Session.getInstance(properties, new Authenticator() {
+            @Override
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(myAccountEmail, password);
+            }
+        });
+
+        //Prepare email message
+        Message message = prepareMessage(session, myAccountEmail, recepient,stockName,price);
+        //Send mail
+        Transport.send(message);
+        System.out.println("Message sent successfully");
+    }
+
+    private static Message prepareMessage(Session session, String myAccountEmail, String recepient,String stock,Double price) {
+        try {
+            Message message = new MimeMessage(session);
+            message.setFrom(new InternetAddress(myAccountEmail));
+            message.setRecipient(Message.RecipientType.TO, new InternetAddress(recepient));
+            message.setSubject("Your stock has reached your desired price");
+            String htmlCode = "<h1> CONGRATULATION </h1> <br/> <h2><b>Your stock "+stock+"have the price "+ price +" now "+"</b></h2>";
+            message.setContent(htmlCode, "text/html");
+            return message;
+        } catch (Exception ex) {
+            System.out.println(ex);
+        }
+        return null;
+    }
+
 }
+
+

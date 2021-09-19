@@ -112,6 +112,16 @@
             <artifactId>java-jwt</artifactId>
             <version>3.7.0</version>
         </dependency>
+        <dependency>
+            <groupId>com.sun.mail</groupId>
+            <artifactId>javax.mail</artifactId>
+            <version>1.6.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.sun.mail</groupId>
+            <artifactId>all</artifactId>
+            <version>1.6.0</version>
+        </dependency>
     </dependencies>
 
 
