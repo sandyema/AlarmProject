@@ -62,12 +62,13 @@ public class User_Controller {
                             alarmName=alarm.getAlarm_name();
                             price=getPriceStock(alarmName);
 
-                            if((alarm.getOver_price().equals(1) && df2.format(price).equals(df2.format(alarm.getInitial_price()*(1+alarm.getWanted_percent()/100)))) || (alarm.getLess_price().equals(1) && df2.format(price).equals(df2.format(alarm.getInitial_price()*(1-alarm.getWanted_percent()/100)))))
+                            if((alarm.getOver_price().equals(1) && alarm.getActive().equals(1)&& df2.format(price).equals(df2.format(alarm.getInitial_price()*(1+alarm.getWanted_percent()/100)))) || (alarm.getLess_price().equals(1) && alarm.getActive().equals(1)&& df2.format(price).equals(df2.format(alarm.getInitial_price()*(1-alarm.getWanted_percent()/100)))))
 
                             {
                                  destinationEmail=user.getEmail();
-
-                                sendMail(destinationEmail,alarmName,price);
+                                String htmlCode = "<h1> CONGRATULATION </h1> <br/> <h2><b>Your stock "+alarmName+" have the price "+ price +" now "+"</b></h2>";
+                                sendMail(destinationEmail,htmlCode);
+                                alarm.setActive(0);
                             }
 
                         } catch (Exception e) {
@@ -84,7 +85,7 @@ public class User_Controller {
     @RequestMapping(value = "/login", method = RequestMethod.POST)
     public @ResponseBody
     JSONObject login(@RequestBody JSONObject user) {
-        System.out.println("Try to login for :" + user.getAsString("email") + " : " + user.getAsString("pass"));
+        //System.out.println("Try to login for :" + user.getAsString("email") + " : " + user.getAsString("pass"));
         HashMap<String, String> response = new HashMap<String, String>();
 
 
@@ -95,9 +96,6 @@ public class User_Controller {
         System.out.println(user_pass + "\n");
 
         Alarm_User user_found = user_repository.findByEmailAndPass(user_email, user_pass);
-        System.out.println(user_found.getEmail());
-        System.out.println(user_found.getPass());
-        System.out.println(user_found.getFirst_name());
 
         if (user_found != null) {
             response.put("response", "true");
@@ -105,7 +103,7 @@ public class User_Controller {
             System.out.println("Succes to login for " + user_email + " : " + user_pass);
         } else {
             response.put("response", "false");
-            System.out.println("Failed to login for " + user_email + " : " + user_pass);
+           // System.out.println("Failed to login for " + user_email + " : " + user_pass);
         }
         return new JSONObject(response);
     }
@@ -137,6 +135,30 @@ public class User_Controller {
         return new JSONObject(response);
     }
 
+    @RequestMapping(value = "/resetPass", method = RequestMethod.POST)
+    public @ResponseBody
+    JSONObject resetPass(@RequestBody JSONObject user) {
+        System.out.println("Try to modify for :" + user.getAsString("user_email"));
+        HashMap<String, String> response = new HashMap<String, String>();
+
+        String user_email = user.getAsString("user_email");
+        String new_pass = user.getAsString("new_pass");
+        System.out.println(user_email + "\n");
+        System.out.println("____PASS___"+new_pass);
+
+        String htmlCode = "<h1> NEW PASSWORD </h1> <br/> <h2><b>Your password is now "+new_pass+"</b></h2>";
+
+        try {
+            user_repository.resetPass(user_email, new_pass);
+            response.put("response", "true");
+            sendMail(user_email,htmlCode);
+
+        }catch (Exception ex){
+            System.out.println(ex);
+        }
+
+        return new JSONObject(response);
+    }
     @RequestMapping(value = "/findID", method = RequestMethod.POST)
     public @ResponseBody
     JSONObject findID(@RequestBody JSONObject user) {
@@ -213,7 +235,7 @@ public class User_Controller {
             {
                 for (Alarm_User user : user_repository.findAll()) {
                     for (Alarm alarm : alarm_repository.findAll()) {
-                        if (userAlarm.getId_user().equals(id_user) && userAlarm.getId_alarm().equals(alarm.getId()) && userAlarm.getId_user().equals(user.getId()) && alarm.getActive().equals(1)) {
+                        if (userAlarm.getId_user().equals(id_user) && userAlarm.getId_alarm().equals(alarm.getId()) && userAlarm.getId_user().equals(user.getId())) {
                             try {
                                 price=getPriceStock(alarm.getAlarm_name());
                                 alarm.setCurrent_price(price);
@@ -368,7 +390,7 @@ public class User_Controller {
         return new JSONObject(response);
     }
 
-    public static void sendMail(String recepient,String stockName,Double price) throws Exception {
+    public static void sendMail(String recepient,String htmlCode) throws Exception {
         System.out.println("Preparing to send email");
         Properties properties = new Properties();
 
@@ -385,7 +407,7 @@ public class User_Controller {
         //Your gmail address
         String myAccountEmail = "sandyema43@gmail.com";
         //Your gmail password
-        String password = "********";
+        String password = "*****";
 
         //Create a session with account credentials
         Session session = Session.getInstance(properties, new Authenticator() {
@@ -396,19 +418,18 @@ public class User_Controller {
         });
 
         //Prepare email message
-        Message message = prepareMessage(session, myAccountEmail, recepient,stockName,price);
+        Message message = prepareMessage(session, myAccountEmail, recepient,htmlCode);
         //Send mail
         Transport.send(message);
         System.out.println("Message sent successfully");
     }
 
-    private static Message prepareMessage(Session session, String myAccountEmail, String recepient,String stock,Double price) {
+    private static Message prepareMessage(Session session, String myAccountEmail, String recepient,String htmlCode) {
         try {
             Message message = new MimeMessage(session);
             message.setFrom(new InternetAddress(myAccountEmail));
             message.setRecipient(Message.RecipientType.TO, new InternetAddress(recepient));
-            message.setSubject("Your stock has reached your desired price");
-            String htmlCode = "<h1> CONGRATULATION </h1> <br/> <h2><b>Your stock "+stock+"have the price "+ price +" now "+"</b></h2>";
+            message.setSubject("Alarms stock");
             message.setContent(htmlCode, "text/html");
             return message;
         } catch (Exception ex) {
